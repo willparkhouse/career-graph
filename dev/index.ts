@@ -3,7 +3,7 @@ import Sigma from "sigma";
 import { EdgeDisplayData, NodeDisplayData } from "sigma/types";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import noverlap from "graphology-layout-noverlap";
-import data from "./data.json"; // import JSON data
+import data from "./data.json";
 
 const graph = new Graph();
 
