@@ -2,12 +2,12 @@ import Graph from "graphology";
 import Sigma from "sigma";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import noverlap from "graphology-layout-noverlap";
-import { EdgeDisplayData, NodeDisplayData } from "sigma/types";  // Add this line to import the types
+import { EdgeDisplayData, NodeDisplayData } from "sigma/types";
+import './styles.css';
 
 const graph = new Graph();
 const addedNodes = new Set<string>();
 
-// Function to add a node if it doesn't already exist
 const addNodeIfNotExist = (nodeLabel: string) => {
   if (!addedNodes.has(nodeLabel)) {
     graph.addNode(nodeLabel, {
@@ -23,12 +23,23 @@ const addNodeIfNotExist = (nodeLabel: string) => {
 
 const interpolateColor = (value: number, min: number, max: number) => {
   const ratio = (value - min) / (max - min);
-  const r = Math.floor(255 * ratio); // Red increases with the ratio
-  const b = Math.floor(255 * (1 - ratio)); // Blue decreases with the ratio
-  return `rgb(${r}, 0, ${b})`; // Blue to Red transition
+
+  // Starting color: rgb(102, 153, 255)
+  const startR = 102;
+  const startG = 153;
+  const startB = 255;
+
+  // Ending color: rgb(255, 102, 102)
+  const endR = 255;
+  const endG = 102;
+  const endB = 102;
+
+  const r = Math.floor(startR + ratio * (endR - startR));
+  const g = Math.floor(startG + ratio * (endG - startG));
+  const b = Math.floor(startB + ratio * (endB - startB));
+  return `rgb(${r}, ${g}, ${b})`;
 };
 
-// Function to update node size and color based on degree (number of connections)
 const updateNodeAttributes = () => {
   const degrees = graph.nodes().map(node => graph.degree(node));
   const maxDegree = Math.max(...degrees);
@@ -37,13 +48,36 @@ const updateNodeAttributes = () => {
   graph.forEachNode((node, attributes) => {
     const degree = graph.degree(node);
     const color = interpolateColor(degree, minDegree, maxDegree);
-    const size = 1 + degree * 0.04; // Adjust size based on degree
+    const size = 1 + degree * 0.04;
     graph.setNodeAttribute(node, 'color', color);
     graph.setNodeAttribute(node, 'size', size);
   });
+  createDynamicColorScale(minDegree, maxDegree);
 };
 
-// Function to apply ForceAtlas2 and NoOverlap algorithms
+const createDynamicColorScale = (minDegree: number, maxDegree: number) => {
+  const ticksContainer = document.getElementById("ticks");
+  if (ticksContainer) {
+    ticksContainer.innerHTML = ""; 
+  }
+
+  const numberOfTicks = 5;
+  for (let i = 0; i < numberOfTicks; i++) {
+    const tickValue = Math.round(minDegree + (i / (numberOfTicks - 1)) * (maxDegree - minDegree));
+
+    const tick = document.createElement("div");
+    tick.classList.add("tick");
+
+    const tickLabel = document.createElement("span");
+    tickLabel.textContent = tickValue.toString();
+    tick.appendChild(tickLabel);
+
+    if (ticksContainer) {
+      ticksContainer.appendChild(tick);
+    }
+  }
+};
+
 const applyForceAtlas2AndNoOverlap = () => {
   const forceSettings = {
     iterations: 100,
@@ -55,25 +89,17 @@ const applyForceAtlas2AndNoOverlap = () => {
       slowDown: 1,
     },
   };
-
-  // Apply the ForceAtlas2 layout
   forceAtlas2.assign(graph, forceSettings);
-
   const noverlapSettings = {
     margin: 120,
     ratio: 1.5,
     maxIterations: 100,
     speed: 3,
   };
-
-  // Apply the NoOverlap layout
   noverlap.assign(graph, noverlapSettings);
-
   updateNodeAttributes();
-
   const container = document.getElementById("container") as HTMLDivElement;
   const renderer = new Sigma(graph, container);
-
   const state: State = { showLabels: true };
 
   function setHoveredNode(node?: string) {
@@ -190,7 +216,6 @@ const applyForceAtlas2AndNoOverlap = () => {
   });
 };
 
-// Fetch JSON data dynamically at runtime
 fetch('data.json')
   .then(response => response.json())
   .then((data: { profession: string; related_professions: string[] }[]) => {
@@ -215,7 +240,6 @@ fetch('data.json')
   })
   .catch(error => console.error('Error loading JSON:', error));
 
-// State interface
 interface State {
   hoveredNode?: string;
   hoveredNeighbors?: Set<string>;

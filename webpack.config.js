@@ -3,13 +3,12 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');  
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
-
 module.exports = {
   entry: './index.ts',
   output: {
     filename: '[name].[contenthash].js',
     path: path.resolve(__dirname, 'dist'),
-    clean: true,  //
+    clean: true,  
   },
   resolve: {
     extensions: ['.ts', '.js', '.json'],
@@ -25,6 +24,10 @@ module.exports = {
         test: /\.json$/,
         type: 'json',
         exclude: /node_modules/,
+      },
+      {
+        test: /\.css$/, 
+        use: ['style-loader', 'css-loader'],
       },
     ],
   },
