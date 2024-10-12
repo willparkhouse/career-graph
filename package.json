@@ -4,7 +4,9 @@
     "description": "A Sigma.js graph visualizing professions and related professions.",
     "main": "index.ts",
     "scripts": {
-        "start": "webpack serve --open"
+        "start": "webpack serve --open",
+        "build": "webpack --mode production"
+
     },
     "license": "MIT",
     "dependencies": {
