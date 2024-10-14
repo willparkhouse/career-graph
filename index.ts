@@ -6,47 +6,64 @@ import { EdgeDisplayData, NodeDisplayData } from "sigma/types";
 import './styles.css';
 
 const graph = new Graph();
-const addedNodes = new Set<string>();
+
+interface State {
+  hoveredNode?: string;
+  hoveredNeighbors?: Set<string>;
+  showLabels: boolean;
+  selectedNode?: string;
+}
+
+fetch('data.json')
+  .then(response => response.json())
+  .then((data: { profession: string; related_professions: string[] }[]) => {
+    data.forEach((professionData) => {
+      const profession = professionData.profession;
+      addNodeIfNotExist(profession);
+      professionData.related_professions.forEach((relatedProfession) => {
+        addNodeIfNotExist(relatedProfession);
+        if (!graph.hasEdge(profession, relatedProfession)) {
+          graph.addEdge(profession, relatedProfession, {
+            size: 0.2,
+            color: "#CCCCCC",
+          });
+        }
+      });
+    });
+    applyForceAtlas2AndNoOverlap();
+    graph.export();
+  })
+  .catch(error => console.error('Error loading JSON:', error));
+
+
 
 const addNodeIfNotExist = (nodeLabel: string) => {
-  if (!addedNodes.has(nodeLabel)) {
-    graph.addNode(nodeLabel, {
-      label: nodeLabel,
-      x: Math.random(),
-      y: Math.random(),
-      size: 4,
-      color: "#6699CC",
-    });
-    addedNodes.add(nodeLabel);
-  }
-};
-
-const interpolateColor = (value: number, min: number, max: number) => {
-  const ratio = (value - min) / (max - min);
-
-  // Starting color: rgb(102, 153, 255)
-  const startR = 102;
-  const startG = 153;
-  const startB = 255;
-
-  // Ending color: rgb(255, 102, 102)
-  const endR = 255;
-  const endG = 102;
-  const endB = 102;
-
-  const r = Math.floor(startR + ratio * (endR - startR));
-  const g = Math.floor(startG + ratio * (endG - startG));
-  const b = Math.floor(startB + ratio * (endB - startB));
-  return `rgb(${r}, ${g}, ${b})`;
+  if (graph.hasNode(nodeLabel)) return;
+  graph.addNode(nodeLabel, {
+    label: nodeLabel,
+    x: Math.random(),
+    y: Math.random(),
+    size: 4,
+    color: "#6699CC",
+  });
 };
 
 const updateNodeAttributes = () => {
-  const degrees = graph.nodes().map(node => graph.degree(node));
-  const maxDegree = Math.max(...degrees);
-  const minDegree = Math.min(...degrees);
+  let maxDegree = -Infinity;
+  let minDegree = Infinity;
+  const degreeCache: Record<string, number> = {};
 
-  graph.forEachNode((node, attributes) => {
+  // calculate degrees and determine min/max degree
+  graph.forEachNode((node) => {
     const degree = graph.degree(node);
+    degreeCache[node] = degree; // cache degree
+    if (degree > maxDegree) maxDegree = degree;
+    if (degree < minDegree) minDegree = degree;
+  });
+
+  // update node attributes based on cached degree
+  graph.forEachNode((node) => {
+    const degree = degreeCache[node]; // retrieve cached degree
     const color = interpolateColor(degree, minDegree, maxDegree);
     const size = 1 + degree * 0.04;
     graph.setNodeAttribute(node, 'color', color);
@@ -55,28 +72,7 @@ const updateNodeAttributes = () => {
   createDynamicColorScale(minDegree, maxDegree);
 };
 
-const createDynamicColorScale = (minDegree: number, maxDegree: number) => {
-  const ticksContainer = document.getElementById("ticks");
-  if (ticksContainer) {
-    ticksContainer.innerHTML = ""; 
-  }
 
-  const numberOfTicks = 5;
-  for (let i = 0; i < numberOfTicks; i++) {
-    const tickValue = Math.round(minDegree + (i / (numberOfTicks - 1)) * (maxDegree - minDegree));
-
-    const tick = document.createElement("div");
-    tick.classList.add("tick");
-
-    const tickLabel = document.createElement("span");
-    tickLabel.textContent = tickValue.toString();
-    tick.appendChild(tickLabel);
-
-    if (ticksContainer) {
-      ticksContainer.appendChild(tick);
-    }
-  }
-};
 
 const applyForceAtlas2AndNoOverlap = () => {
   const forceSettings = {
@@ -102,6 +98,27 @@ const applyForceAtlas2AndNoOverlap = () => {
   const renderer = new Sigma(graph, container);
   const state: State = { showLabels: true };
 
+
+  
+
+  let isBatching = false;
+  let refreshTimeout: number | null = null;
+  
+  const debouncedAndBatchedRefresh = (refreshMs: number) => {
+    if (refreshTimeout !== null) {
+      clearTimeout(refreshTimeout);
+    }
+    refreshTimeout = window.setTimeout(() => {
+      if (!isBatching) {
+        isBatching = true;
+        requestAnimationFrame(() => {
+          renderer.refresh();
+          isBatching = false;
+          refreshTimeout = null;
+        });
+      }
+    }, refreshMs);
+  };
   function setHoveredNode(node?: string) {
     if (node) {
       state.hoveredNode = node;
@@ -110,13 +127,13 @@ const applyForceAtlas2AndNoOverlap = () => {
       state.hoveredNode = undefined;
       state.hoveredNeighbors = undefined;
     }
-    renderer.refresh();
+    debouncedAndBatchedRefresh(30); 
   }
-
+  
   function applyLabelVisibility() {
     const zoomRatio = renderer.getCamera().getState().ratio;
     state.showLabels = zoomRatio < 0.1;
-    renderer.refresh();
+    debouncedAndBatchedRefresh(150);
   }
 
   function updateSuggestions(query: string) {
@@ -216,33 +233,48 @@ const applyForceAtlas2AndNoOverlap = () => {
   });
 };
 
-fetch('data.json')
-  .then(response => response.json())
-  .then((data: { profession: string; related_professions: string[] }[]) => {
-    data.forEach((professionData) => {
-      const profession = professionData.profession;
 
-      addNodeIfNotExist(profession);
 
-      professionData.related_professions.forEach((relatedProfession) => {
-        addNodeIfNotExist(relatedProfession);
 
-        if (!graph.hasEdge(profession, relatedProfession) && !graph.hasEdge(relatedProfession, profession)) {
-          graph.addEdge(profession, relatedProfession, {
-            size: 0.2,
-            color: "#CCCCCC",
-          });
-        }
-      });
-    });
+// Func to interpolate color based on the number of connections
+const interpolateColor = (value: number, min: number, max: number) => {
+  const ratio = (value - min) / (max - min);
 
-    applyForceAtlas2AndNoOverlap();
-  })
-  .catch(error => console.error('Error loading JSON:', error));
+  // Starting color: rgb(102, 153, 255)
+  const startR = 102;
+  const startG = 153;
+  const startB = 255;
 
-interface State {
-  hoveredNode?: string;
-  hoveredNeighbors?: Set<string>;
-  showLabels: boolean;
-  selectedNode?: string;
-}
+  // Ending color: rgb(255, 102, 102)
+  const endR = 255;
+  const endG = 102;
+  const endB = 102;
+
+  const r = Math.floor(startR + ratio * (endR - startR));
+  const g = Math.floor(startG + ratio * (endG - startG));
+  const b = Math.floor(startB + ratio * (endB - startB));
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
+// Func for the 'number of connections' legend
+const createDynamicColorScale = (minDegree: number, maxDegree: number) => {
+  const ticksContainer = document.getElementById("ticks");
+  if (ticksContainer) {
+    ticksContainer.innerHTML = ""; 
+  }
+  const numberOfTicks = 5;
+  for (let i = 0; i < numberOfTicks; i++) {
+    const tickValue = Math.round(minDegree + (i / (numberOfTicks - 1)) * (maxDegree - minDegree));
+
+    const tick = document.createElement("div");
+    tick.classList.add("tick");
+
+    const tickLabel = document.createElement("span");
+    tickLabel.textContent = tickValue.toString();
+    tick.appendChild(tickLabel);
+
+    if (ticksContainer) {
+      ticksContainer.appendChild(tick);
+    }
+  }
+};

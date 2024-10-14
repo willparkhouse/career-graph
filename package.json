@@ -6,7 +6,6 @@
     "scripts": {
         "start": "webpack serve --open",
         "build": "webpack --mode production"
-
     },
     "license": "MIT",
     "dependencies": {
