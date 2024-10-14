@@ -19,11 +19,18 @@ Promise.all([
   fetch('edges.json').then(response => response.json()) 
 ]).then(([nodes, edges]: [string[], [string, string][]]) => {
 
-  nodes.forEach((nodeLabel: string) => {
+  const gridWidth = Math.ceil(Math.sqrt(nodes.length));
+  const spacing = 0.001;
+  nodes.forEach((nodeLabel, index) => {
+    const row = Math.floor(index / gridWidth);
+    const col = index % gridWidth;
+    const x = col * spacing;
+    const y = row * spacing;
+
     graph.addNode(nodeLabel, {
       label: nodeLabel,
-      x: Math.random(),
-      y: Math.random(),
+      x: x,
+      y: y,
       size: 4,
       color: "#6699CC",
     });
@@ -72,9 +79,9 @@ const applyForceAtlas2AndNoOverlap = () => {
     settings: {
       barnesHutOptimize: true,
       barnesHutTheta: 0.5,
-      gravity: 1,
-      scalingRatio: 2,
-      slowDown: 1,
+      gravity: 0.1,
+      scalingRatio: 5,
+      slowDown: 10,
     },
   };
   forceAtlas2.assign(graph, forceSettings);
@@ -89,10 +96,6 @@ const applyForceAtlas2AndNoOverlap = () => {
   const container = document.getElementById("container") as HTMLDivElement;
   const renderer = new Sigma(graph, container);
   const state: State = { showLabels: true };
-
-
-  
-
   let isBatching = false;
   let refreshTimeout: number | null = null;
   
