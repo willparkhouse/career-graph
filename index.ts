@@ -14,39 +14,31 @@ interface State {
   selectedNode?: string;
 }
 
-fetch('data.json')
-  .then(response => response.json())
-  .then((data: { profession: string; related_professions: string[] }[]) => {
-    data.forEach((professionData) => {
-      const profession = professionData.profession;
-      addNodeIfNotExist(profession);
-      professionData.related_professions.forEach((relatedProfession) => {
-        addNodeIfNotExist(relatedProfession);
-        if (!graph.hasEdge(profession, relatedProfession)) {
-          graph.addEdge(profession, relatedProfession, {
-            size: 0.2,
-            color: "#CCCCCC",
-          });
-        }
-      });
+Promise.all([
+  fetch('nodes.json').then(response => response.json()),
+  fetch('edges.json').then(response => response.json()) 
+]).then(([nodes, edges]: [string[], [string, string][]]) => {
+
+  nodes.forEach((nodeLabel: string) => {
+    graph.addNode(nodeLabel, {
+      label: nodeLabel,
+      x: Math.random(),
+      y: Math.random(),
+      size: 4,
+      color: "#6699CC",
     });
-    applyForceAtlas2AndNoOverlap();
-    graph.export();
-  })
-  .catch(error => console.error('Error loading JSON:', error));
-
-
-
-const addNodeIfNotExist = (nodeLabel: string) => {
-  if (graph.hasNode(nodeLabel)) return;
-  graph.addNode(nodeLabel, {
-    label: nodeLabel,
-    x: Math.random(),
-    y: Math.random(),
-    size: 4,
-    color: "#6699CC",
   });
-};
+
+  edges.forEach(([source, target]) => {
+    graph.addEdge(source, target, {
+      size: 0.2,
+      color: "#CCCCCC",
+    });
+  });
+
+  applyForceAtlas2AndNoOverlap();
+  graph.export();
+}).catch(error => console.error('Error loading nodes or edges:', error));
 
 const updateNodeAttributes = () => {
   let maxDegree = -Infinity;
